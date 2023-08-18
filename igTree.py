@@ -4,10 +4,15 @@ from math import log
 import numpy as np
 
 data = pd.read_csv('adult.csv')
-features = ["age","workclass","fnlwgt","education","education.num","marital.status","occupation","relationship","race","sex","capital.gain","capital.loss","hours.per.week","native.country","income"]
-da = data.replace('?',np.nan,inplace=False)
-dataset = da.dropna(axis=0,how='any',thresh = None,subset= None,inplace=False)
-X = dataset.iloc[:, :14].values
+data_clean = data.replace('?', np.nan).dropna()
+features = ["age", "workclass", "fnlwgt", "education", "education.num", "marital.status", "occupation", "relationship",
+            "race", "sex", "capital.gain", "capital.loss", "hours.per.week", "native.country", "income"]
+continuous_features = ['age', 'fnlwgt', 'education.num', 'capital.gain', 'capital.loss', 'hours.per.week']
+for feature in continuous_features:
+    data_clean[feature] = pd.qcut(data_clean[feature], q=4, labels=False, duplicates='drop')
+X = data_clean.iloc[:, :15].values
+data_clean
+
 
 # Calulate the entropy
 def cal_entropy(data):
@@ -45,7 +50,6 @@ def split_dataset(data, feature_index, val):
 
 
 def choose_best_to_split(data):
-    # Num of features without target
     num_feature = len(data[0]) - 1
     # sum of entropy
     entropy = cal_entropy(data)
@@ -53,11 +57,8 @@ def choose_best_to_split(data):
     max_info_gain = 0.0
     # Index of max info gain
     max_info_gain_index = -1
-
     for i in range(num_feature):
-        # Get all the value of column
         feature_element = [ele_index[i] for ele_index in data]
-        # Remove all the duplicates
         uni_ele = set(feature_element)
 
         pro_entropy = 0.0
@@ -70,13 +71,7 @@ def choose_best_to_split(data):
             pro_abs_entropy += pro * abs(cal_entropy(sub_data))
         # Calculate the info gain
         info_gain = entropy - pro_entropy
-        # Calculate the fair gain
-        fair_gain = abs(entropy) - pro_abs_entropy
-        # If fair gain not equal zero, info gain equal to info gain * fair gain.
-        if fair_gain != 0:
-            info_gain = info_gain * fair_gain
-        # Update the max info gain index.
-        if (info_gain > max_info_gain):
+        if info_gain > max_info_gain:
             max_info_gain = info_gain
             max_info_gain_index = i
     return max_info_gain_index
@@ -128,8 +123,6 @@ def accuracy_test(DTree, data, features):
     index = features.index(feature)
     # Based on value choice the child
     for i in first_dict.keys():
-        if index == 12:
-            index = index - 1
         if data[index] == i:
             if type(first_dict[i]) == dict:
                 class_label = accuracy_test(first_dict[i], data, features)
@@ -143,9 +136,21 @@ X_test = X[:1000]
 decisiontree = decesion_tree(X_train.tolist(), features)
 count = 0
 xtest = X_test.tolist()
+FG_count, FR_count, DG_count, DR_count = 0, 0, 0, 0
 for test in xtest:
     label = accuracy_test(decisiontree, test, features)
-    if (label == test[-1]):
+    if label == test[-1]:
         count = count + 1
+    sex = test[9]
+    if label == ">50K" and sex == "Male":
+        FG_count += 1
+    elif label == "<=50K" and sex == "Male":
+        FR_count += 1
+    elif label == ">50K" and sex == "Female":
+        DG_count += 1
+    elif label == "<=50K" and sex == "Female":
+        DR_count += 1
 accuracy = float(count / len(xtest))
+disc = (FG_count / (FG_count + FR_count)) - (DG_count / (DG_count + DR_count))
 print('The test accuracy of decision tree:{0: .2f}%'.format(accuracy * 100))
+print('The disc of decision tree:' + format(disc, '.4f'))
